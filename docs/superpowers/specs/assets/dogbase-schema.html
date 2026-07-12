@@ -1,0 +1,338 @@
+<title>dogbase — schema v2</title>
+<style>
+  :root {
+    --bg: #f2f4f3;
+    --surface: #ffffff;
+    --surface-2: #f7f8f8;
+    --ink: #1b2126;
+    --muted: #5f6b73;
+    --faint: #8a959c;
+    --border: #e0e4e5;
+    --border-strong: #c9d0d1;
+    --pk: #9a6a12;      /* key gold */
+    --pk-bg: #f7edd6;
+    --fk: #0f6e66;      /* teal */
+    --fk-bg: #d9efec;
+    --cache: #6146c4;   /* violet — derived/cache */
+    --cache-bg: #e7e1f8;
+    --truth: #2c7a4b;   /* green — the event log / labels */
+    --truth-bg: #d9f0e0;
+    --guard: #a83250;   /* rose — guardrail-touching */
+    --guard-bg: #f6dee4;
+    --slice1: #0f6e66;
+    --accent: #0f6e66;
+    --shadow: 0 1px 2px rgba(20,30,35,.05), 0 6px 20px rgba(20,30,35,.05);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161a; --surface: #1a1f25; --surface-2: #21272e;
+      --ink: #e7eaec; --muted: #9aa5ad; --faint: #6c777e;
+      --border: #2a3138; --border-strong: #3a434b;
+      --pk: #e0b155; --pk-bg: #3a2f16;
+      --fk: #4bbdb0; --fk-bg: #123531;
+      --cache: #a893f0; --cache-bg: #241a45;
+      --truth: #5fc487; --truth-bg: #143324;
+      --guard: #e28aa0; --guard-bg: #3a1a25;
+      --slice1: #4bbdb0; --accent: #4bbdb0;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f4f3; --surface: #ffffff; --surface-2: #f7f8f8;
+    --ink: #1b2126; --muted: #5f6b73; --faint: #8a959c;
+    --border: #e0e4e5; --border-strong: #c9d0d1;
+    --pk: #9a6a12; --pk-bg: #f7edd6; --fk: #0f6e66; --fk-bg: #d9efec;
+    --cache: #6146c4; --cache-bg: #e7e1f8; --truth: #2c7a4b; --truth-bg: #d9f0e0;
+    --guard: #a83250; --guard-bg: #f6dee4; --slice1: #0f6e66; --accent: #0f6e66;
+    --shadow: 0 1px 2px rgba(20,30,35,.05), 0 6px 20px rgba(20,30,35,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161a; --surface: #1a1f25; --surface-2: #21272e;
+    --ink: #e7eaec; --muted: #9aa5ad; --faint: #6c777e;
+    --border: #2a3138; --border-strong: #3a434b;
+    --pk: #e0b155; --pk-bg: #3a2f16; --fk: #4bbdb0; --fk-bg: #123531;
+    --cache: #a893f0; --cache-bg: #241a45; --truth: #5fc487; --truth-bg: #143324;
+    --guard: #e28aa0; --guard-bg: #3a1a25; --slice1: #4bbdb0; --accent: #4bbdb0;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header.masthead { margin-bottom: 8px; }
+  .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; }
+  h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.08; margin: 8px 0 6px;
+    letter-spacing: -.02em; text-wrap: balance; font-weight: 680; }
+  .sub { color: var(--muted); max-width: 62ch; font-size: 15px; }
+
+  .invariant { margin: 26px 0 30px; background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--cache); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .invariant h2 { margin: 0 0 6px; font-size: 15px; letter-spacing: -.01em; }
+  .invariant p { margin: 0; color: var(--muted); font-size: 14px; max-width: 78ch; }
+  .invariant code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2);
+    padding: 1px 5px; border-radius: 5px; color: var(--ink); border: 1px solid var(--border); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 30px; font-size: 12.5px; }
+  .legend .lg { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 18px; align-items: start; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; box-shadow: var(--shadow); }
+  .card.slice1 { border-color: var(--slice1); box-shadow: 0 0 0 1px var(--slice1), var(--shadow); }
+  .card h3 { margin: 0; font-family: var(--mono); font-size: 15px; font-weight: 600;
+    padding: 13px 16px; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .card h3 .role { font-family: var(--sans); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; font-weight: 600; color: var(--faint); }
+  .card .note-row { font-size: 12px; color: var(--muted); padding: 9px 16px; font-style: italic;
+    border-bottom: 1px solid var(--border); background: var(--surface); }
+
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  td { padding: 6px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .fname { color: var(--ink); white-space: nowrap; font-weight: 550; }
+  .ftype { color: var(--faint); font-size: 11px; padding-left: 8px; text-align: right; white-space: nowrap; }
+  .fnote { color: var(--muted); font-size: 11px; font-family: var(--sans); font-style: italic;
+    padding-top: 1px; line-height: 1.35; }
+
+  .badge { font-family: var(--sans); font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+    padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle;
+    text-transform: uppercase; }
+  .b-pk { color: var(--pk); background: var(--pk-bg); }
+  .b-fk { color: var(--fk); background: var(--fk-bg); }
+  .b-cache { color: var(--cache); background: var(--cache-bg); }
+  .b-truth { color: var(--truth); background: var(--truth-bg); }
+  .b-guard { color: var(--guard); background: var(--guard-bg); }
+  .nullable .fname { color: var(--muted); font-weight: 400; }
+  .nullable .fname::after { content: " ?"; color: var(--faint); }
+
+  .rel { margin-top: 36px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px; box-shadow: var(--shadow); }
+  .rel h2 { margin: 0 0 14px; font-size: 15px; }
+  .rel ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px;
+    font-family: var(--mono); font-size: 12.5px; }
+  .rel li { color: var(--muted); }
+  .rel b { color: var(--ink); font-weight: 600; }
+  .rel .card-arrow { color: var(--accent); padding: 0 4px; }
+
+  footer { margin-top: 40px; color: var(--faint); font-size: 12px; text-align: center; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">dogbase · data model</div>
+    <h1>Schema v2 — every belief traces to an event</h1>
+    <p class="sub">Target schema for the full v1 pipeline. A dog is recognized once by a model,
+    then by a feeder, then by a vet — and each recognition is a row you can point to. Cards outlined
+    in teal are what Slice&nbsp;1 (collect &amp; store) actually builds; the rest exist in the migration
+    but stay empty until later slices.</p>
+  </header>
+
+  <div class="invariant">
+    <h2>The load-bearing invariant</h2>
+    <p><code>sightings.individual_id</code> and <code>match_status</code> are <b>caches of the latest
+    accepted decision</b> — recomputable from <code>match_proposals</code> + <code>confirmations</code>.
+    Every link, <b>including automatic high-confidence ones</b>, writes a proposal. That is what makes
+    merges, splits, threshold recalibration, and “why does the system think this is Kaju?” all answerable
+    — and what makes a feeder’s recognition both the product and the training label.</p>
+  </div>
+
+  <div class="legend" id="legend"></div>
+  <div class="grid" id="grid"></div>
+
+  <div class="rel">
+    <h2>Relationships</h2>
+    <ul id="rels"></ul>
+  </div>
+
+  <footer>dogbase schema v2 · folds in Fable’s review · caches vs. event log · 2026-07</footer>
+</div>
+
+<script>
+const F = (name, type, note, opts={}) => ({name, type, note, ...opts});
+const tables = [
+  { name: "observers", role: "identity", slice1: true,
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("phone_hash","text","HMAC + server secret — NOT plain SHA",{guard:1}),
+      F("contact_enc","text","encrypted; consented feeder/clinic only",{nullable:1,guard:1}),
+      F("display_name","text",null,{nullable:1}),
+      F("trust_tier","text","public | feeder | clinic"),
+      F("home_geog","geography","POINT",{nullable:1}),
+      F("home_radius_m","int","for proposal routing",{nullable:1}),
+      F("deleted_at","timestamptz","DPDP soft-delete",{nullable:1,guard:1}),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+  { name: "sightings", role: "core", slice1: true,
+    note: "One observation event. Begins anonymous — an empty slot.",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("observer_id","→ observers","severable on DPDP delete",{fk:1,nullable:1}),
+      F("individual_id","→ individuals","the empty slot",{fk:1,nullable:1,cache:1}),
+      F("area_id","→ areas","ward",{fk:1,nullable:1}),
+      F("captured_at","timestamptz","when photographed (may be unknown)"),
+      F("reported_at","timestamptz","message received"),
+      F("geog","geography","POINT"),
+      F("geo_source","text","exif | whatsapp_pin | user_stated | inferred"),
+      F("geo_accuracy_m","int",null,{nullable:1}),
+      F("match_status","text","unmatched | proposed | confirmed",{cache:1}),
+      F("review_status","text","pending | valid | rejected — junk filter"),
+      F("rejection_reason","text",null,{nullable:1}),
+      F("attrs","jsonb","ear_notch, collar, notes"),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+  { name: "photos", role: "core", slice1: true,
+    note: "1..n images per sighting — every angle is free re-ID signal.",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("sighting_id","→ sightings",null,{fk:1}),
+      F("storage_key","text","S3 key, never blob"),
+      F("width / height","int",null),
+      F("phash","text","dedup + forwarded-image tripwire",{nullable:1}),
+      F("created_at","timestamptz",null),
+    ]},
+  { name: "embeddings", role: "ml",
+    note: "1..n per photo (per model, per crop). Re-embed = cheap insert. UNIQUE(photo_id, model).",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("photo_id","→ photos",null,{fk:1}),
+      F("model","text","megadescriptor-l-384 | dinov2 | …"),
+      F("dim","int","768 | 1024 | 1536 — drives partial index"),
+      F("bbox","jsonb","detection crop; NULL = whole photo",{nullable:1}),
+      F("vec","vector","L2-normalized; per-model partial HNSW"),
+      F("created_at","timestamptz",null),
+    ]},
+  { name: "individuals", role: "identity",
+    note: "A dog. Mostly empty slots waiting to be named.",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("name","text","filled when named",{nullable:1}),
+      F("named_by","→ observers","the namer",{fk:1,nullable:1}),
+      F("named_at","timestamptz",null,{nullable:1}),
+      F("created_by_observer","→ observers",null,{fk:1,nullable:1}),
+      F("created_via","text","model | feeder | clinic"),
+      F("sex","text",null,{nullable:1}),
+      F("sterilized","boolean","ear-notch = the mark-resight mark",{nullable:1}),
+      F("first_seen_at / last_seen_at","timestamptz",null),
+      F("territory_geog","geography",null,{nullable:1}),
+      F("status","text","active | merged | dead | unknown"),
+      F("merged_into","→ individuals","set IFF status=merged",{fk:1,nullable:1}),
+      F("attrs","jsonb",null),
+      F("notes","text",null,{nullable:1}),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+  { name: "match_proposals", role: "event log",
+    note: "Every link, incl. auto. This is the truth; individual_id is its cache.",
+    fields: [
+      F("id","uuidv7",null,{pk:1,truth:1}),
+      F("sighting_id","→ sightings",null,{fk:1}),
+      F("candidate_individual_id","→ individuals",null,{fk:1}),
+      F("score","float",null),
+      F("method","text","model | geo | feeder"),
+      F("status","text","pending | confirmed | rejected"),
+      F("resolved_by","→ observers","NULL = auto-link",{fk:1,nullable:1}),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+  { name: "confirmations", role: "event log",
+    note: "Human verdict = a training label. This is recognition-as-love, made queryable.",
+    fields: [
+      F("id","uuidv7",null,{pk:1,truth:1}),
+      F("proposal_id","→ match_proposals","NULL = unprompted “that’s Kaju”",{fk:1,nullable:1,truth:1}),
+      F("sighting_id","→ sightings",null,{fk:1}),
+      F("individual_id","→ individuals",null,{fk:1}),
+      F("observer_id","→ observers",null,{fk:1}),
+      F("verdict","text","same | different",{truth:1}),
+      F("created_at","timestamptz",null),
+    ]},
+  { name: "clinical_records", role: "clinical",
+    note: "Soulmates / Belgaum. sighting_id wires the ground-truth loop.",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("individual_id","→ individuals",null,{fk:1}),
+      F("sighting_id","→ sightings","intake photo = ground truth",{fk:1,nullable:1,truth:1}),
+      F("external_ref","text","Soulmates’ own record id",{nullable:1}),
+      F("visit_date","date",null),
+      F("procedure","text","vaccine | spay | treat"),
+      F("vet","text",null),
+      F("notes","text",null,{nullable:1}),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+  { name: "areas", role: "geo",
+    note: "Ward / zone polygons. Needed by the population endpoint (M4).",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("name","text",null),
+      F("kind","text","ward | zone"),
+      F("boundary","geography","POLYGON"),
+      F("created_at","timestamptz",null),
+    ]},
+  { name: "jobs", role: "infra", slice1: true,
+    note: "Postgres-backed queue. Listed for M1 completeness; not FK'd into.",
+    fields: [
+      F("id","uuidv7",null,{pk:1}),
+      F("kind","text","embed | match | …"),
+      F("payload","jsonb",null),
+      F("status","text","pending | running | done | failed"),
+      F("error","text",null,{nullable:1}),
+      F("created_at / updated_at","timestamptz",null),
+    ]},
+];
+
+const rels = [
+  ["observers","contributes","sightings"],
+  ["sightings","has 1..n","photos"],
+  ["photos","embedded as","embeddings"],
+  ["individuals","id'd as (nullable cache)","sightings"],
+  ["sightings","triggers","match_proposals"],
+  ["individuals","candidate for","match_proposals"],
+  ["match_proposals","prompts (nullable)","confirmations"],
+  ["individuals / sightings / observers","asserted by","confirmations"],
+  ["individuals","has","clinical_records"],
+  ["sightings","IS (nullable)","clinical_records"],
+  ["areas","locate","sightings"],
+  ["individuals","merged_into (self-ref)","individuals"],
+];
+
+const legendItems = [
+  ["b-pk","primary key","--pk"],
+  ["b-fk","foreign key","--fk"],
+  ["b-cache","cache / derived","--cache"],
+  ["b-truth","event log · training label","--truth"],
+  ["b-guard","touches a guardrail","--guard"],
+  ["slice1","built in Slice 1","--slice1"],
+];
+
+document.getElementById("legend").innerHTML = legendItems.map(([_,label,v]) =>
+  `<span class="lg"><span class="dot" style="background:var(${v})"></span>${label}</span>`).join("");
+
+document.getElementById("grid").innerHTML = tables.map(t => {
+  const rows = t.fields.map(f => {
+    const badges = [
+      f.pk ? '<span class="badge b-pk">pk</span>' : '',
+      f.fk ? '<span class="badge b-fk">fk</span>' : '',
+      f.cache ? '<span class="badge b-cache">cache</span>' : '',
+      f.truth ? '<span class="badge b-truth">event</span>' : '',
+      f.guard ? '<span class="badge b-guard">guard</span>' : '',
+    ].join('');
+    return `<tr class="${f.nullable ? 'nullable':''}">
+      <td><span class="fname">${f.name}</span>${badges}
+        ${f.note ? `<div class="fnote">${f.note}</div>`:''}</td>
+      <td class="ftype">${f.type||''}</td></tr>`;
+  }).join('');
+  return `<div class="card ${t.slice1 ? 'slice1':''}">
+    <h3><span>${t.name}</span><span class="role">${t.role}</span></h3>
+    ${t.note ? `<div class="note-row">${t.note}</div>`:''}
+    <table>${rows}</table></div>`;
+}).join('');
+
+document.getElementById("rels").innerHTML = rels.map(([a,v,b]) =>
+  `<li><b>${a}</b> <span class="card-arrow">→</span> ${v} <span class="card-arrow">→</span> <b>${b}</b></li>`).join('');
+</script>

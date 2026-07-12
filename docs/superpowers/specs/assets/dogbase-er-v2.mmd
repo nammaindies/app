@@ -1,0 +1,140 @@
+erDiagram
+    observers   ||--o{ sightings        : contributes
+    observers   ||--o{ confirmations    : makes
+    observers   |o--o{ individuals       : "named / created"
+    areas       ||--o{ sightings         : "located in"
+    sightings   ||--o{ photos            : "has 1..n"
+    photos      ||--o{ embeddings        : "embedded (per model, per crop)"
+    individuals |o--o{ sightings          : "id'd as (CACHE, nullable)"
+    sightings   ||--o{ match_proposals   : triggers
+    individuals ||--o{ match_proposals   : "candidate for"
+    match_proposals |o--o{ confirmations : "prompts (nullable = unprompted)"
+    sightings   ||--o{ confirmations     : "labeled by"
+    individuals ||--o{ confirmations     : "asserted as"
+    individuals ||--o{ clinical_records  : has
+    sightings   |o--o| clinical_records  : "clinic visit IS a sighting"
+    individuals |o--o| individuals        : "merged_into (self)"
+
+    observers {
+        uuid        id             PK "uuidv7"
+        text        phone_hash     "UK - HMAC + server secret, NOT plain SHA"
+        text        contact_enc    "nullable - encrypted, consented feeder/clinic only"
+        text        display_name   "nullable"
+        text        trust_tier     "public|feeder|clinic (text+CHECK)"
+        geography   home_geog      "nullable POINT"
+        int         home_radius_m  "nullable - for proposal routing"
+        timestamptz deleted_at     "nullable - DPDP soft delete"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    sightings {
+        uuid        id             PK
+        uuid        observer_id    FK "nullable - severable on DPDP delete"
+        uuid        individual_id  FK "NULLABLE - the empty slot, CACHE of latest decision"
+        uuid        area_id        FK "nullable - ward"
+        timestamptz captured_at    "when photographed (may be unknown)"
+        timestamptz reported_at    "message received"
+        geography   geog           "POINT"
+        text        geo_source     "exif|whatsapp_pin|user_stated|inferred"
+        int         geo_accuracy_m "nullable"
+        text        match_status   "unmatched|proposed|confirmed (CACHE, CHECK)"
+        text        review_status  "pending|valid|rejected"
+        text        rejection_reason "nullable"
+        jsonb       attrs          "ear_notch, collar, notes"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    photos {
+        uuid        id           PK
+        uuid        sighting_id  FK
+        text        storage_key  "S3 key, never blob"
+        int         width
+        int         height
+        text        phash        "nullable - dedup + forwarded-image tripwire"
+        timestamptz created_at
+    }
+
+    embeddings {
+        uuid        id          PK
+        uuid        photo_id    FK
+        text        model       "megadescriptor-l-384 | dinov2 | ..."
+        int         dim         "768|1024|1536 - drives partial index"
+        jsonb       bbox        "nullable - detection crop; NULL = whole photo"
+        vector      vec         "pgvector, L2-normalized; per-model partial HNSW"
+        timestamptz created_at
+    }
+
+    individuals {
+        uuid        id                  PK
+        text        name                "nullable - filled when named"
+        uuid        named_by            FK "nullable observers - the namer"
+        timestamptz named_at            "nullable"
+        uuid        created_by_observer FK "nullable"
+        text        created_via         "model|feeder|clinic"
+        text        sex                 "nullable"
+        boolean     sterilized          "nullable - ear-notch = mark-resight mark"
+        timestamptz first_seen_at
+        timestamptz last_seen_at
+        geography   territory_geog      "nullable"
+        text        status              "active|merged|dead|unknown (CHECK)"
+        uuid        merged_into         FK "nullable self - CHECK: set IFF status=merged"
+        jsonb       attrs
+        text        notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    match_proposals {
+        uuid        id                     PK "EVENT LOG - every link, incl auto"
+        uuid        sighting_id            FK
+        uuid        candidate_individual_id FK
+        float       score
+        text        method                 "model|geo|feeder"
+        text        status                 "pending|confirmed|rejected"
+        uuid        resolved_by            FK "nullable observers - NULL = auto-link"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    confirmations {
+        uuid        id            PK
+        uuid        proposal_id   FK "nullable - NULL = unprompted 'that's Kaju'"
+        uuid        sighting_id   FK
+        uuid        individual_id FK
+        uuid        observer_id   FK
+        text        verdict       "same|different - THIS IS A TRAINING LABEL"
+        timestamptz created_at
+    }
+
+    clinical_records {
+        uuid        id            PK
+        uuid        individual_id FK
+        uuid        sighting_id   FK "nullable - intake photo = ground truth"
+        text        external_ref  "nullable - Soulmates' own record id"
+        date        visit_date
+        text        procedure     "vaccine|spay|treat (CHECK)"
+        text        vet
+        text        notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    areas {
+        uuid        id        PK
+        text        name
+        text        kind      "ward|zone"
+        geography   boundary  "POLYGON"
+        timestamptz created_at
+    }
+
+    jobs {
+        uuid        id         PK "M1 completeness - not FK'd into"
+        text        kind       "embed|match|..."
+        jsonb       payload
+        text        status     "pending|running|done|failed"
+        text        error      "nullable"
+        timestamptz created_at
+        timestamptz updated_at
+    }
