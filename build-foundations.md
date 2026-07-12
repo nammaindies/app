@@ -1,4 +1,4 @@
-# dogbase — build foundations (for Claude Code)
+# build foundations (for Claude Code)
 
 Working name. Company GitHub, AWS/Lightsail hosting. Read this before scaffolding anything.
 
