@@ -77,11 +77,13 @@ frontend/
     components/DogMap.tsx        # MapLibre wrapper
     offline/queue.ts             # IndexedDB capture queue + sync
     main.tsx  sw.ts
+Dockerfile                       # multi-stage: build frontend -> install backend -> serve both
+docker-compose.dev.yml           # local: postgis+pgvector, minio
+docker-compose.prod.yml          # on VM: caddy + app + (postgres | RDS via env)
 deploy/
-  Caddyfile  indiedex.service    # reverse proxy + systemd unit
-  provision.md                   # box bootstrap runbook
+  Caddyfile                      # reverse proxy + auto-TLS (containerized)
+  provision.md                   # box bootstrap runbook (install docker, pull, up)
   backup.sh                      # pg_dump -> S3
-docker-compose.dev.yml           # postgis+pgvector, minio
 ```
 
 ---
@@ -384,31 +386,29 @@ export async function getDex(): Promise<{sightings: Sighting[]}>;
 
 ---
 
-## Phase H — Provision & deploy (GATED: needs Lightsail box + SSH)
+## Phase H — Containerize & deploy (GATED: needs Lightsail box + SSH)
 
-> Do not start until Akash has created the Lightsail Ubuntu VM + AWS S3 bucket and granted CLI/SSH. These tasks are a runbook, executed against the real box; verification is end-to-end from a phone.
+> **Docker-first (Akash's call):** the app ships as a container image; the VM just runs `docker compose up`. Do not start until Akash has created the Lightsail Ubuntu VM + AWS S3 bucket and granted CLI/SSH. Verification is end-to-end from a phone.
 
-### Task H1: Box bootstrap + Postgres
+### Task H1: Dockerfile + prod compose (buildable now, no box)
 
-> **DB host is a connection-string swap.** On-box Postgres for the pilot (per spec's single-VM principle); **RDS is the likely production move** (Akash's flag) and needs PostGIS+pgvector — RDS Postgres supports both. Because the app takes a DB URL and migrations are host-agnostic, moving on-box → RDS is config, not rework. Revisit before scaling past the pilot.
+**Files:** Create `Dockerfile`, `docker-compose.prod.yml`.
+- [ ] Multi-stage `Dockerfile`: stage 1 builds the frontend (`npm run build`); stage 2 installs the backend (uv) and copies the built static assets; runs uvicorn serving both API and PWA. `docker-compose.prod.yml` wires three services — `caddy` (auto-TLS, reverse-proxy), `app` (the image), `db` (postgis+pgvector; **omit-able when `DATABASE_URL` points at RDS**). **Acceptance (local):** `docker compose -f docker-compose.prod.yml up` on the laptop serves the app on `localhost`, `/dex` → 401. *(This task needs no box — it's containerization, so it runs in the main build, not gated.)*
+
+### Task H2: Image registry + box bootstrap
 
 **Files:** Create `deploy/provision.md`.
-- [ ] Install Postgres 16 + PostGIS + pgvector on the VM (pilot); create the app DB; run `alembic upgrade head`; create `app_rw`/`public_read` with real passwords; lock down `pg_hba` to localhost. **Acceptance:** `psql` on the box shows all 10 tables + roles. (RDS alternative: provision an RDS Postgres with the `postgis`+`vector` extensions enabled, point the app's DB URL at it — same migration, same acceptance.)
+- [ ] Publish the image to **GHCR** (`ghcr.io/nammaindies/app`); on the VM install Docker + compose, log in to GHCR, pull. **DB host is a connection-string swap:** on-box `db` container for the pilot (per spec's single-VM principle), **RDS the likely production move** (RDS Postgres supports `postgis`+`vector`) — set via `DATABASE_URL`, no rework. **Acceptance:** `docker compose -f docker-compose.prod.yml pull` succeeds on the box; migrations run (`docker compose run app alembic upgrade head`); `psql` shows all 10 tables + `app_rw`/`public_read`.
 
-### Task H2: S3 bucket + app service
+### Task H3: S3 bucket + secrets + TLS domain
 
-**Files:** Create `deploy/indiedex.service` (systemd unit for uvicorn).
-- [ ] Create the S3 bucket (`ap-south-1`), an IAM user scoped to it; set app env (secrets, DB url, S3 creds) via an `EnvironmentFile`; enable the service. **Acceptance:** `curl localhost:8000/dex` → 401 (app up, auth enforced).
-
-### Task H3: Caddy TLS + domain
-
-**Files:** Create `deploy/Caddyfile`.
-- [ ] Point a domain/subdomain at the VM; Caddy auto-provisions TLS and reverse-proxies to uvicorn; build the frontend (`npm run build`) and have FastAPI/Caddy serve the static PWA. **Acceptance:** from a phone over HTTPS, mint a magic link, log in, photograph a real dog, and see it appear in the IndieDex map — the full loop live. This satisfies spec §7 acceptance criteria 1–8.
+**Files:** update `deploy/provision.md`; `deploy/Caddyfile`.
+- [ ] Create the S3 bucket (`ap-south-1`) + a scoped IAM user; put secrets (session/HMAC/magic-link keys, DB url, S3 creds) in a `.env` on the box consumed by compose; point a domain/subdomain at the VM so Caddy auto-provisions TLS. **Acceptance:** from a phone over HTTPS, mint a magic link, log in, photograph a real dog, see it in the IndieDex map — the full loop live. Satisfies spec §7 acceptance criteria 1–8.
 
 ### Task H4: Backups
 
 **Files:** Create `deploy/backup.sh`.
-- [ ] Cron `pg_dump` → S3 daily; enable Lightsail auto-snapshots. **Acceptance:** a dump object lands in S3; a restore into a scratch DB reproduces the schema + rows.
+- [ ] Cron `pg_dump` (via `docker compose exec db`) → S3 daily; enable Lightsail auto-snapshots. **Acceptance:** a dump object lands in S3; a restore into a scratch DB reproduces the schema + rows.
 
 ---
 
