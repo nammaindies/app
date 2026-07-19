@@ -25,6 +25,9 @@ async def create_sighting(
     captured_at: datetime = Form(...),
     reported_at: datetime | None = Form(None),
     note: str | None = Form(None),
+    sex: Literal["male", "female", "unsure"] | None = Form(None),
+    ear_notch: Literal["none", "left", "right", "unsure"] | None = Form(None),
+    condition: Literal["healthy", "injured", "unsure"] | None = Form(None),
     observer_id: UUID = Depends(require_observer),
     conn=Depends(get_conn),
     storage: S3Storage = Depends(get_storage),
@@ -57,7 +60,16 @@ async def create_sighting(
         )
 
     geog_present = geo_source != "none" and lat is not None and lng is not None
-    attrs = {"note": note} if note else {}
+    attrs = {
+        k: v
+        for k, v in {
+            "note": note,
+            "sex": sex,
+            "ear_notch": ear_notch,
+            "condition": condition,
+        }.items()
+        if v
+    }
 
     async with conn.transaction():
         if geog_present:

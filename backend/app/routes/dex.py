@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -23,6 +24,7 @@ async def get_dex(
             ST_Y(s.geog::geometry) AS lat,
             ST_X(s.geog::geometry) AS lng,
             s.geo_accuracy_m,
+            s.attrs,
             p.id AS photo_id,
             p.s3_key
         FROM sightings s
@@ -38,12 +40,15 @@ async def get_dex(
     for row in rows:
         sid = str(row["sighting_id"])
         if sid not in sightings:
+            raw_attrs = row["attrs"]
+            attrs = json.loads(raw_attrs) if isinstance(raw_attrs, str) else (raw_attrs or {})
             sightings[sid] = {
                 "id": sid,
                 "captured_at": row["captured_at"],
                 "lat": row["lat"],
                 "lng": row["lng"],
                 "geo_accuracy_m": row["geo_accuracy_m"],
+                "attrs": attrs,
                 "photos": [],
             }
             order.append(sid)

@@ -52,6 +52,35 @@ async def test_post_sighting_creates_rows(authed_client):
 
 
 @pytest.mark.asyncio
+async def test_post_sighting_stores_optional_attrs(authed_client):
+    client, _ = authed_client
+    r = await client.post(
+        "/sighting",
+        files={"photos": ("d.jpg", _jpeg(), "image/jpeg")},
+        data={
+            "geo_source": "none",
+            "captured_at": "2026-07-19T10:00:00Z",
+            "sex": "female",
+            "ear_notch": "left",
+            "condition": "injured",
+            "note": "friendly",
+        },
+    )
+    assert r.status_code == 201
+    sid = r.json()["sighting_id"]
+    pool = client._transport.app.state.pool
+    async with pool.acquire() as c:
+        attrs = await c.fetchval("SELECT attrs FROM sightings WHERE id=$1", sid)
+    import json as _json
+
+    parsed = _json.loads(attrs) if isinstance(attrs, str) else attrs
+    assert parsed["sex"] == "female"
+    assert parsed["ear_notch"] == "left"
+    assert parsed["condition"] == "injured"
+    assert parsed["note"] == "friendly"
+
+
+@pytest.mark.asyncio
 async def test_post_sighting_geo_none_stores_null_geog(authed_client):
     client, _ = authed_client
     r = await client.post(

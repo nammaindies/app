@@ -1,6 +1,57 @@
 import { useRef, useState } from "react";
-import { postSighting, UnauthorizedError, type GeoSource } from "../api";
+import {
+  postSighting,
+  UnauthorizedError,
+  type Condition,
+  type EarNotch,
+  type GeoSource,
+  type Sex,
+} from "../api";
 import { enqueue } from "../offline/queue";
+
+const SEX_OPTIONS: { value: Sex; label: string }[] = [
+  { value: "male", label: "♂ male" },
+  { value: "female", label: "♀ female" },
+  { value: "unsure", label: "unsure" },
+];
+
+const EAR_NOTCH_OPTIONS: { value: EarNotch; label: string }[] = [
+  { value: "none", label: "none" },
+  { value: "left", label: "left" },
+  { value: "right", label: "right" },
+  { value: "unsure", label: "unsure" },
+];
+
+const CONDITION_OPTIONS: { value: Condition; label: string }[] = [
+  { value: "healthy", label: "healthy" },
+  { value: "injured", label: "injured" },
+  { value: "unsure", label: "unsure" },
+];
+
+function Chips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T | null;
+  onChange: (v: T | null) => void;
+}) {
+  return (
+    <div className="chip-row">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={"chip" + (value === o.value ? " active" : "")}
+          onClick={() => onChange(value === o.value ? null : o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function getLocation(): Promise<GeolocationPosition | null> {
   return new Promise((resolve) => {
@@ -18,6 +69,10 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [sex, setSex] = useState<Sex | null>(null);
+  const [earNotch, setEarNotch] = useState<EarNotch | null>(null);
+  const [condition, setCondition] = useState<Condition | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -37,6 +92,10 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
     setPhoto(null);
     setPreviewUrl(null);
     setNote("");
+    setSex(null);
+    setEarNotch(null);
+    setCondition(null);
+    setMoreOpen(false);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -55,6 +114,9 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
       geo_source: geoSource,
       captured_at: capturedAt,
       note: note || undefined,
+      sex: sex || undefined,
+      ear_notch: earNotch || undefined,
+      condition: condition || undefined,
     };
 
     try {
@@ -118,6 +180,32 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
+
+          <button
+            type="button"
+            className="more-toggle"
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            {moreOpen ? "▾" : "▸"} tell us more (optional)
+          </button>
+
+          {moreOpen && (
+            <div className="more-fields">
+              <div className="field-group">
+                <label>sex</label>
+                <Chips options={SEX_OPTIONS} value={sex} onChange={setSex} />
+              </div>
+              <div className="field-group">
+                <label>ear-notch (sterilized?)</label>
+                <Chips options={EAR_NOTCH_OPTIONS} value={earNotch} onChange={setEarNotch} />
+              </div>
+              <div className="field-group">
+                <label>condition</label>
+                <Chips options={CONDITION_OPTIONS} value={condition} onChange={setCondition} />
+              </div>
+            </div>
+          )}
+
           <div className="actions-row">
             <button className="btn btn-secondary" onClick={reset} disabled={submitting}>
               Retake

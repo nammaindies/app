@@ -3,6 +3,7 @@ import Capture from "./screens/Capture";
 import Dex from "./screens/Dex";
 import { flush } from "./offline/queue";
 import { getDex, UnauthorizedError } from "./api";
+import mark from "./assets/mark.svg";
 
 type Tab = "capture" | "dex";
 
@@ -39,8 +40,8 @@ export default function App() {
           <div className="big-paw">🐕‍🦺</div>
           <h2>You need an invite</h2>
           <p className="hint">
-            Namma IndieDex is invite-only right now. Ask a friend for a magic link, or
-            check your email for one, to start logging sightings.
+            indiedex, by Namma Indies, is invite-only right now. Ask a friend for a
+            magic link, or check your email for one, to start logging sightings.
           </p>
         </div>
       </div>
@@ -51,7 +52,8 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <span className="brand">
-          <span className="pawmark">🐾</span> Namma IndieDex
+          <img className="mark" src={mark} alt="" />
+          indiedex
         </span>
       </div>
       <div className="screen">

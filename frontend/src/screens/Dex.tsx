@@ -2,6 +2,23 @@ import { useEffect, useState } from "react";
 import { getDex, UnauthorizedError, type Sighting } from "../api";
 import DogMap from "../components/DogMap";
 
+const TAG_LABELS: Record<string, string> = {
+  male: "♂ male",
+  female: "♀ female",
+  left: "notched-left",
+  right: "notched-right",
+  healthy: "healthy",
+  injured: "injured",
+};
+
+function attrTags(s: Sighting): string[] {
+  const attrs = s.attrs || {};
+  const raw = [attrs.sex, attrs.ear_notch, attrs.condition] as (string | undefined)[];
+  return raw
+    .filter((v): v is string => !!v && v !== "unsure" && v !== "none")
+    .map((v) => TAG_LABELS[v] ?? v);
+}
+
 export default function Dex({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [sightings, setSightings] = useState<Sighting[] | null>(null);
   const [view, setView] = useState<"map" | "gallery">("map");
@@ -54,6 +71,16 @@ export default function Dex({ onUnauthorized }: { onUnauthorized: () => void }) 
           <div onClick={(e) => e.stopPropagation()}>
             {selected.photos[0] && <img src={selected.photos[0].url} alt="dog sighting" />}
             <p className="viewer-caption">{new Date(selected.captured_at).toLocaleString()}</p>
+            {selected.attrs?.note && <p className="viewer-note">{selected.attrs.note}</p>}
+            {attrTags(selected).length > 0 && (
+              <div className="viewer-tags">
+                {attrTags(selected).map((t) => (
+                  <span key={t} className="tag">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

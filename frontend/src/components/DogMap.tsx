@@ -54,17 +54,53 @@ export default function DogMap({ sightings }: { sightings: Sighting[] }) {
     const addMarkers = () => {
       for (const s of sightings) {
         if (s.lat == null || s.lng == null) continue;
-        const el = document.createElement("div");
-        el.textContent = "🐾";
-        el.style.fontSize = "22px";
-        el.style.cursor = "pointer";
-
         const thumb = s.photos[0]?.thumb_url;
+
+        const el = document.createElement("div");
+        el.className = "photo-pin";
+        if (thumb) {
+          const img = document.createElement("img");
+          img.src = thumb;
+          img.alt = "dog sighting";
+          el.appendChild(img);
+        } else {
+          el.textContent = "🐾";
+          el.classList.add("photo-pin-fallback");
+        }
+
         const time = new Date(s.captured_at).toLocaleString();
+        const attrs = s.attrs || {};
+        const tagLabels: Record<string, string> = {
+          male: "♂ male",
+          female: "♀ female",
+          left: "notched-left",
+          right: "notched-right",
+          healthy: "healthy",
+          injured: "injured",
+        };
+        const rawTags = [attrs.sex, attrs.ear_notch, attrs.condition] as (
+          | string
+          | undefined
+        )[];
+        const tags = rawTags
+          .filter((v): v is string => !!v && v !== "unsure" && v !== "none")
+          .map((v) => tagLabels[v] ?? v);
         const popupHtml = `
           <div class="map-popup">
             ${thumb ? `<img src="${thumb}" alt="dog sighting" />` : ""}
             <div class="time">${time}</div>
+            ${
+              attrs.note
+                ? `<div class="popup-note">${attrs.note.replace(/</g, "&lt;")}</div>`
+                : ""
+            }
+            ${
+              tags.length
+                ? `<div class="popup-tags">${tags
+                    .map((t) => `<span class="tag">${t}</span>`)
+                    .join("")}</div>`
+                : ""
+            }
           </div>`;
 
         const marker = new maplibregl.Marker({ element: el })

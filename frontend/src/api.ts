@@ -2,10 +2,20 @@
 // httpOnly session cookie set by /auth/magic-link/consume is included.
 
 export type GeoSource = "device_gps" | "pin" | "none";
+export type Sex = "male" | "female" | "unsure";
+export type EarNotch = "none" | "left" | "right" | "unsure";
+export type Condition = "healthy" | "injured" | "unsure";
 
 export interface Photo {
   url: string;
   thumb_url: string;
+}
+
+export interface SightingAttrs {
+  note?: string;
+  sex?: Sex;
+  ear_notch?: EarNotch;
+  condition?: Condition;
 }
 
 export interface Sighting {
@@ -14,6 +24,7 @@ export interface Sighting {
   lat: number | null;
   lng: number | null;
   geo_accuracy_m: number | null;
+  attrs: SightingAttrs;
   photos: Photo[];
 }
 
@@ -30,6 +41,9 @@ export interface PostSightingInput {
   captured_at: string;
   reported_at?: string;
   note?: string;
+  sex?: Sex;
+  ear_notch?: EarNotch;
+  condition?: Condition;
 }
 
 export interface PostSightingResponse {
@@ -65,6 +79,9 @@ export function buildSightingForm(input: PostSightingInput): FormData {
   form.append("captured_at", input.captured_at);
   if (input.reported_at) form.append("reported_at", input.reported_at);
   if (input.note) form.append("note", input.note);
+  if (input.sex) form.append("sex", input.sex);
+  if (input.ear_notch) form.append("ear_notch", input.ear_notch);
+  if (input.condition) form.append("condition", input.condition);
   return form;
 }
 
