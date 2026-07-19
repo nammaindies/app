@@ -38,6 +38,10 @@ async def create_sighting(
         raise HTTPException(
             status_code=422, detail="at least one photo or a video is required"
         )
+    if photos and video is not None:
+        raise HTTPException(
+            status_code=422, detail="provide either photos or a video, not both"
+        )
 
     sighting_id = uuid7()
     from_video = video is not None
@@ -47,8 +51,10 @@ async def create_sighting(
         raw_video = await video.read()
         try:
             processed_frames = extract_diverse_frames(raw_video)
-        except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+        except (ValueError, OSError, RuntimeError):
+            raise HTTPException(
+                status_code=422, detail="could not read video / no decodable frames"
+            )
         # raw video bytes are never persisted -- discarded here.
     else:
         processed_frames = [process_photo(await f.read()) for f in photos]
