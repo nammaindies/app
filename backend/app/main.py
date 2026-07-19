@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from app.db import effective_dsn
 from app.deps import get_storage
 from app.routes.auth import router as auth_router
+from app.routes.dex import router as dex_router
 from app.routes.sighting import router as sighting_router
 
 
@@ -21,4 +22,5 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(dex_router)
 app.include_router(sighting_router)
