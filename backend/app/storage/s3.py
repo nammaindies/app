@@ -58,6 +58,15 @@ class S3Storage:
                 ContentType=content_type,
             )
 
+    async def list_keys(self, prefix: str) -> list[str]:
+        async with self._client() as client:
+            keys: list[str] = []
+            paginator = client.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    keys.append(obj["Key"])
+            return keys
+
     async def url(self, key: str, expires_s: int = 3600) -> str:
         async with self._client() as client:
             return await client.generate_presigned_url(

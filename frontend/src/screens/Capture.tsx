@@ -66,7 +66,9 @@ function getLocation(): Promise<GeolocationPosition | null> {
 
 export default function Capture({ onUnauthorized }: { onUnauthorized: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [sex, setSex] = useState<Sex | null>(null);
@@ -84,12 +86,22 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
   function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    setVideo(null);
     setPhoto(f);
+    setPreviewUrl(URL.createObjectURL(f));
+  }
+
+  function onVideoChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setPhoto(null);
+    setVideo(f);
     setPreviewUrl(URL.createObjectURL(f));
   }
 
   function reset() {
     setPhoto(null);
+    setVideo(null);
     setPreviewUrl(null);
     setNote("");
     setSex(null);
@@ -97,17 +109,19 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
     setCondition(null);
     setMoreOpen(false);
     if (fileRef.current) fileRef.current.value = "";
+    if (videoRef.current) videoRef.current.value = "";
   }
 
   async function submit() {
-    if (!photo) return;
+    if (!photo && !video) return;
     setSubmitting(true);
     const capturedAt = new Date().toISOString();
     const position = await getLocation();
 
     const geoSource: GeoSource = position ? "device_gps" : "none";
     const input = {
-      photos: [photo],
+      photos: photo ? [photo] : undefined,
+      video: video ?? undefined,
       lat: position?.coords.latitude,
       lng: position?.coords.longitude,
       geo_accuracy_m: position?.coords.accuracy,
@@ -144,7 +158,9 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
   return (
     <div className="capture-stage">
       <div className="preview-frame">
-        {previewUrl ? (
+        {previewUrl && video ? (
+          <video src={previewUrl} controls muted />
+        ) : previewUrl ? (
           <img src={previewUrl} alt="captured dog" />
         ) : (
           <div className="placeholder">
@@ -162,13 +178,29 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
         style={{ display: "none" }}
         onChange={onFileChosen}
       />
+      <input
+        ref={videoRef}
+        type="file"
+        accept="video/*"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={onVideoChosen}
+      />
 
-      {!photo ? (
+      {!photo && !video ? (
         <div className="shutter-wrap">
           <button className="shutter" onClick={() => fileRef.current?.click()} aria-label="Take photo">
             📷
           </button>
           <p className="hint">Tap to open camera</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => videoRef.current?.click()}
+          >
+            🎥 Record video
+          </button>
+          <p className="hint">Record a few seconds → we keep the best frames.</p>
         </div>
       ) : (
         <>
@@ -211,8 +243,13 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
               Retake
             </button>
             <button className="btn btn-primary" onClick={submit} disabled={submitting}>
-              {submitting ? <span className="spinner" /> : "Log sighting"}
+              {submitting ? (
+                <span className="spinner" />
+              ) : (
+                "Log sighting"
+              )}
             </button>
+            {submitting && video && <p className="hint">Extracting frames from your clip…</p>}
           </div>
         </>
       )}
