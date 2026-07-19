@@ -14,6 +14,8 @@ Two consumers of one pipeline, at two confidence thresholds:
 
 **The core technical problem is open-set individual re-identification with a strong geo/time prior.** Everything else is deliberately boring plumbing so effort concentrates there.
 
+**Species.** Dogs are the focus, but the pipeline is species-agnostic. Every `sighting` and `individual` carries a `species` tag (`dog` | `cat` | `other`), set at intake. Street cats are a first-class-but-secondary population — re-ID candidate retrieval and population estimates both run *per species* (never match across species). On the public surface cats stay a quiet easter egg, not a headline.
+
 ## 1. Keep this in mind (the heart)
 
 Every sighting starts anonymous and points at an **individual slot that may stay empty for months** until the model earns confidence or a feeder fills it. That empty-slot-waiting-to-be-named is the emotional and architectural center of the system. Design so a "sighting" can *always* be linked to an "individual" later, even if it begins as a nameless street photo. Recognition-as-love (a feeder confirming "that's Kaju") is also recognition-as-label (a training pair). The two are the same event in the data model.
@@ -47,12 +49,14 @@ Public surface = aggregate only. Never expose an individual dog's precise recent
 observers        id, phone_hash, display_name?, trust_tier, home_geog?, created_at
 sightings        id, observer_id -> observers,
                  photo_key, captured_at, geog (POINT, PostGIS),
+                 species ('dog'|'cat'|'other'),             -- tagged at intake
                  embedding (vector, pgvector),
                  individual_id -> individuals NULL,        -- the empty slot
                  match_status ('unmatched'|'proposed'|'confirmed'),
                  attrs jsonb ( ear_notch?, collar?, notes ),
                  created_at
-individuals      id, name?, first_seen_at, last_seen_at, territory_geog?,
+individuals      id, species ('dog'|'cat'|'other'),
+                 name?, first_seen_at, last_seen_at, territory_geog?,
                  created_by ('model'|'feeder'), status, notes
 match_proposals  id, sighting_id, candidate_individual_id, score, method,
                  status ('pending'|'confirmed'|'rejected'), resolved_by?, created_at
@@ -77,6 +81,7 @@ FROM sightings s
 JOIN individuals i ON i.id = s.individual_id
 WHERE ST_DWithin(s.geog, :q_geog, 300)              -- geo prior: ~300m
   AND s.captured_at > now() - interval '30 days'     -- time prior
+  AND s.species = :q_species                         -- never match across species
   AND s.individual_id IS NOT NULL
 ORDER BY visual_dist
 LIMIT 10;
@@ -103,7 +108,7 @@ Cold-start the embedding without waiting for feeders:
 - Score re-ID (rank-1 / rank-5, verification ROC) with: DINOv2 zero-shot, MegaDescriptor zero-shot, MegaDescriptor + geo/time prior.
 - Output the number that decides scope: given a candidate pool of ~N nearby dogs, what accuracy can appearance hit? That tells us how far the individual layer can go and how much load the geo prior must carry.
 
-**Sampling-bias correction for the population estimate** is the other real research task: opportunistic crowdsourcing over-samples friendly/photogenic/high-traffic dogs. Capture effort/coverage metadata per area; model detection probability; stratify/weight. Minimum viable signal is "sightings + a defensible model of *where we looked*," not raw sighting counts.
+**Sampling-bias correction for the population estimate** is the other real research task: opportunistic crowdsourcing over-samples friendly/photogenic/high-traffic dogs. Capture effort/coverage metadata per area; model detection probability; stratify/weight, and run the estimate per species. Minimum viable signal is "sightings + a defensible model of *where we looked*," not raw sighting counts.
 
 ## 8. MVP scope (v1)
 
