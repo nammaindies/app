@@ -16,6 +16,8 @@ This spec defines the **first buildable thing**: a tool Akash can walk around Ba
 
 Every capture is a `sighting` with `individual_id = NULL` — the "empty slot" from `build-foundations.md` §1. The MVP never fills it.
 
+**Multi-user from day one.** Akash plus a few trusted testers each get a separate `observer` identity and log in independently — this replicates the real crowdsourced flow (many distinct contributors) rather than a single-user prototype. Each user's IndieDex shows **their own** captures (per-observer); a shared/collective view is a later product decision, not built now.
+
 **Is NOT (deferred by design):**
 - No re-ID / ML — no embeddings, no matching, no candidate retrieval.
 - No individuals layer — no "same dog" grouping, manual or automatic.
@@ -101,11 +103,14 @@ The **full v2 migration ships day one** (all 10 tables from `docs/specs/2026-07-
 
 ---
 
-## 5. Auth — passwordless allowlist
+## 5. Auth — pluggable, magic-link first
 
-- A **signed per-user magic link**: a server signing key mints a link; opening it sets an `httpOnly` session cookie → that browser is a known `observer`. No passwords, no public signup.
-- Every write is tied to the session's `observer_id`. `phone_hash` (HMAC with server-side secret, `build-foundations.md` §10 / D6) stored when a number is attached.
-- Adding a tester = minting one more link. The whole app sits behind the cookie: no session, no access. Matches `docs/specs/2026-07-10-design.md` Slice 2 ("gated to Akash first, then a small allowlist").
+Auth is built behind a **provider interface** from day one, so sign-in methods are swappable and additive without touching session handling or the app:
+
+- **`AuthProvider` seam:** the app depends on "resolve a request → an authenticated `observer`," not on any specific sign-in method. Magic-link is the first provider; **Google / Facebook OAuth are future providers that plug into the same seam** with no rework of sessions, the observer model, or app code. (This is Akash's explicit call — build auth modular for later social login.)
+- **Magic-link provider (MVP):** a server signing key mints a per-user link; opening it establishes an `httpOnly` session cookie → that browser is a known `observer`. No passwords, no public signup. Adding a tester = minting one more link.
+- **Sessions are provider-agnostic:** every write is tied to the session's `observer_id` regardless of how the session was created. `phone_hash` (HMAC with server-side secret, `build-foundations.md` §10 / D6) stored when a number is attached.
+- The whole app sits behind an authenticated session: no session, no access. Matches `docs/specs/2026-07-10-design.md` Slice 2 ("gated to Akash first, then a small allowlist").
 
 ---
 
@@ -127,11 +132,12 @@ The **full v2 migration ships day one** (all 10 tables from `docs/specs/2026-07-
 
 1. Migration applies clean on fresh Postgres + PostGIS + pgvector, all 10 tables + indexes present; `public_read` role exists and cannot see `individual_id` or raw `geog`.
 2. From a phone, over HTTPS, Akash can photograph a dog and have a sighting with accurate GPS + time land in `sightings`/`photos`, photo bytes in S3.
-3. Access is gated by a magic-link session; a minted link admits a tester, absence of a session denies all access.
-4. `phone_hash` is HMAC; all PKs are uuidv7.
-5. The IndieDex renders every one of the caller's sightings as map pins (MapLibre) **and** a gallery grid; tapping either opens a detail view.
-6. Capture succeeds with GPS denied (flagged `geo_source='none'`) and survives an offline→online round trip (queued then synced).
-7. The app is installable as a PWA (home-screen icon, standalone display).
+3. Access is gated by a magic-link session; a minted link admits a tester, absence of a session denies all access. Auth sits behind an `AuthProvider` seam (magic-link is one provider; adding Google/Facebook later requires no change to sessions or app code).
+4. Multiple distinct observers can each log in and capture independently; each observer's IndieDex shows only their own sightings.
+5. `phone_hash` is HMAC; all PKs are uuidv7.
+6. The IndieDex renders every one of the caller's sightings as map pins (MapLibre) **and** a gallery grid; tapping either opens a detail view.
+7. Capture succeeds with GPS denied (flagged `geo_source='none'`) and survives an offline→online round trip (queued then synced).
+8. The app is installable as a PWA (home-screen icon, standalone display).
 
 ---
 
