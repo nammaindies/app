@@ -1,0 +1,43 @@
+services:
+  # Bundled Postgres (pgvector + PostGIS). Omit this service and point
+  # DATABASE_URL / DATABASE_URL_SYNC at RDS (or another managed Postgres)
+  # when moving off a single-box deployment.
+  db:
+    build:
+      context: ./docker/db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: indiedex
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      # Override the localhost defaults in app/config.py to point at the
+      # `db` service above. Drop these two (and use the RDS vars from
+      # .env.example instead) when using a managed Postgres.
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/indiedex
+      DATABASE_URL_SYNC: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@db:5432/indiedex
+    depends_on:
+      - db
+
+  caddy:
+    image: caddy:2
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

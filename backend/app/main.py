@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,11 +12,20 @@ from app.routes.auth import router as auth_router
 from app.routes.dex import router as dex_router
 from app.routes.sighting import router as sighting_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.pool = await asyncpg.create_pool(effective_dsn())
-    await get_storage().ensure_bucket()
+    # ensure_bucket talks to S3 (or a bogus/unreachable endpoint in some
+    # deployments). Storage isn't touched again until a request actually
+    # needs it, so a failure here shouldn't block the app from booting --
+    # log a warning and continue instead of crashing the whole process.
+    try:
+        await get_storage().ensure_bucket()
+    except Exception:
+        logger.warning("storage.ensure_bucket failed at startup; continuing", exc_info=True)
     try:
         yield
     finally:
