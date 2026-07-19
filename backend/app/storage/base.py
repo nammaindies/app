@@ -1,0 +1,9 @@
+from typing import Protocol
+
+
+class Storage(Protocol):
+    async def put(self, key: str, data: bytes, content_type: str) -> None: ...
+
+    async def url(self, key: str, expires_s: int = 3600) -> str: ...
+
+    async def ensure_bucket(self) -> None: ...
