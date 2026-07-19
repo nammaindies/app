@@ -53,6 +53,10 @@ def _migrated_test_database():
 async def migrated_db():
     conn = await asyncpg.connect(settings.test_database_url)
     try:
+        await conn.execute(
+            "TRUNCATE observers, sightings, photos, embeddings, individuals, "
+            "match_proposals, confirmations, clinical_records RESTART IDENTITY CASCADE"
+        )
         yield conn
     finally:
         await conn.close()
