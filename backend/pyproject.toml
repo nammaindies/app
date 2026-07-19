@@ -12,6 +12,7 @@ dependencies = [
     "pillow>=11.0.0",
     "psycopg[binary]>=3.3.4",
     "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.20",
     "uuid-utils>=0.17.0",
 ]
 

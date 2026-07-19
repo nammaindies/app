@@ -42,15 +42,19 @@ def _run_migrations() -> None:
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _migrated_test_database():
+@pytest.fixture(scope="session")
+def _migrated():
+    """Ensures the test DB exists and is migrated. NOT autouse: only tests
+    that actually need Postgres should request this (directly, or
+    transitively via `migrated_db` / `app_client` / `authed_client`), so
+    pure-unit test files can run without Postgres available."""
     _ensure_test_database()
     _run_migrations()
     yield
 
 
 @pytest_asyncio.fixture
-async def migrated_db():
+async def migrated_db(_migrated):
     conn = await asyncpg.connect(settings.test_database_url)
     try:
         await conn.execute(
@@ -60,3 +64,49 @@ async def migrated_db():
         yield conn
     finally:
         await conn.close()
+
+
+@pytest_asyncio.fixture
+async def app_client(_migrated):
+    from app import db
+
+    db.set_dsn_override(settings.test_database_url)
+    from app.main import app
+
+    app.state.pool = await asyncpg.create_pool(settings.test_database_url)
+
+    from app.deps import get_storage
+
+    await get_storage().ensure_bucket()
+
+    async with app.state.pool.acquire() as c:
+        await c.execute(
+            "TRUNCATE observers, sightings, photos, embeddings, individuals, "
+            "match_proposals, confirmations, clinical_records RESTART IDENTITY CASCADE"
+        )
+
+    import httpx
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+    await app.state.pool.close()
+    db.set_dsn_override(None)
+
+
+@pytest_asyncio.fixture
+async def authed_client(app_client):
+    from app.ids import uuid7
+    from app.security import issue_session
+
+    oid = uuid7()
+    pool = app_client._transport.app.state.pool
+    async with pool.acquire() as c:
+        await c.execute(
+            "INSERT INTO observers (id, display_name, created_via) VALUES ($1,$2,'test')",
+            oid,
+            "Tester",
+        )
+    app_client.cookies.set("session", issue_session(oid))
+    yield app_client, oid
