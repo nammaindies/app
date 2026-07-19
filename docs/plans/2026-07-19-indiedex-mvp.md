@@ -260,20 +260,27 @@ def test_session_roundtrip_and_tamper():
 
 ## Phase E — Ingest
 
-### Task E1: Photo processing (strip EXIF, dimensions, phash)
+### Task E1: Photo processing (strip metadata, dimensions, phash)
+
+> **PENDING [issue #1](https://github.com/nammaindies/app/issues/1) (Aswin):** final format/fidelity + the video→frames path. Build the **conservative default below** so his answer is a config/derivative change, not a rewrite.
 
 **Files:** Create `backend/app/photos.py`, `backend/tests/test_photos.py`.
 
+**Design stance (fidelity-preserving, integrates issue #1):**
+- **Persist a high-fidelity, metadata-stripped original** — strip EXIF/GPS **without gratuitous recompression** (prefer lossless metadata removal; if re-encoding, high quality, no downscale). The original is the ML-grade asset for future re-ID; do not degrade it.
+- **Derive a separate small thumbnail** for the gallery, stored under its own key — the app reads thumbnails, models read originals.
+- **`process_photo` returns both**, so if Aswin wants a different original policy it's one function's internals; storage layout and callers don't change.
+- **Video path is pre-accommodated, not built:** schema is 1 sighting → N photos, so a future short-video ingest = server-side frame extraction producing N `ProcessedPhoto`s under one sighting. No new tables.
+
 **Interfaces:**
-- Produces:
 ```python
 @dataclass
 class ProcessedPhoto:
-    data: bytes; width: int; height: int; phash: str; content_type: str
-def process_photo(raw: bytes) -> ProcessedPhoto   # re-encode to strip EXIF/GPS/faces-metadata; compute imagehash.phash
+    original: bytes; thumbnail: bytes; width: int; height: int; phash: str; content_type: str
+def process_photo(raw: bytes) -> ProcessedPhoto   # metadata-stripped original (fidelity kept) + thumbnail + imagehash.phash
 ```
 
-- [ ] **Steps:** Test that output has no EXIF (`Pillow` `getexif()` empty), dimensions match, `phash` is stable for the same image and differs for a different one. Commit `feat: photo processing (EXIF strip + dims + phash)`.
+- [ ] **Steps:** Test output original has **no EXIF** (`Pillow getexif()` empty) yet dimensions equal the input (no silent downscale of the original); a thumbnail is produced and is smaller; `phash` is stable for the same image and differs for another. Commit `feat: photo processing (metadata strip, fidelity-preserving original + thumbnail + phash)`.
 
 ### Task E2: `POST /sighting`
 
@@ -281,7 +288,7 @@ def process_photo(raw: bytes) -> ProcessedPhoto   # re-encode to strip EXIF/GPS/
 
 **Interfaces:**
 - Consumes: `require_observer`, `Storage`, `process_photo`, `uuid7`, pool.
-- Produces: `POST /sighting` — multipart: `photos[]` (≥1), `lat`, `lng`, `geo_accuracy_m?`, `geo_source`, `captured_at`, `reported_at?`, `note?`. Creates one `sighting` (individual_id NULL, match_status 'unmatched', review_status 'valid') + N `photos`; stores bytes to `Storage` under `sightings/{sighting_id}/{photo_id}.jpg`. Returns `{sighting_id, photo_ids}`.
+- Produces: `POST /sighting` — multipart: `photos[]` (≥1), `lat`, `lng`, `geo_accuracy_m?`, `geo_source`, `captured_at`, `reported_at?`, `note?`. Creates one `sighting` (individual_id NULL, match_status 'unmatched', review_status 'valid') + N `photos`; stores **original + thumbnail** to `Storage` under `sightings/{sighting_id}/{photo_id}.jpg` and `.../{photo_id}_thumb.jpg` (`photos.s3_key` = original; thumbnail key is derived). Returns `{sighting_id, photo_ids}`.
 
 - [ ] **Step 1: Failing tests**
 ```python
@@ -371,7 +378,7 @@ export async function getDex(): Promise<{sightings: Sighting[]}>;
 
 **Files:** Create `frontend/src/screens/Dex.tsx`, `frontend/src/components/DogMap.tsx`.
 
-**Behavior:** `getDex()` → MapLibre map (OSM raster source; **map tile provider is a low-stakes swap** — OSM raster for MVP, MapTiler key later) with a clustered pin per sighting; tap pin → photo + time + accuracy popup. Below/toggle: reverse-chron gallery grid; tap card → detail. Sightings with null geo render in the gallery only, flagged "no location."
+**Behavior:** `getDex()` → MapLibre map (OSM raster source behind a single style-URL swap — **PENDING [issue #2](https://github.com/nammaindies/app/issues/2) (Aswin) for the real provider**; OSM raster is the MVP placeholder) with a clustered pin per sighting; tap pin → photo + time + accuracy popup. Below/toggle: reverse-chron gallery grid; tap card → detail. Sightings with null geo render in the gallery only, flagged "no location."
 
 - [ ] **Acceptance (Playwright MCP):** after seeding 3 sightings for the authed observer, the map shows 3 pins (or a cluster) and the gallery shows 3 cards; another observer's sightings never appear. Commit `feat: IndieDex map + gallery`.
 
@@ -381,10 +388,12 @@ export async function getDex(): Promise<{sightings: Sighting[]}>;
 
 > Do not start until Akash has created the Lightsail Ubuntu VM + AWS S3 bucket and granted CLI/SSH. These tasks are a runbook, executed against the real box; verification is end-to-end from a phone.
 
-### Task H1: Box bootstrap + Postgres on-box
+### Task H1: Box bootstrap + Postgres
+
+> **DB host is a connection-string swap.** On-box Postgres for the pilot (per spec's single-VM principle); **RDS is the likely production move** (Akash's flag) and needs PostGIS+pgvector — RDS Postgres supports both. Because the app takes a DB URL and migrations are host-agnostic, moving on-box → RDS is config, not rework. Revisit before scaling past the pilot.
 
 **Files:** Create `deploy/provision.md`.
-- [ ] Install Postgres 16 + PostGIS + pgvector on the VM; create the app DB; run `alembic upgrade head`; create `app_rw`/`public_read` with real passwords; lock down `pg_hba` to localhost. **Acceptance:** `psql` on the box shows all 10 tables + roles.
+- [ ] Install Postgres 16 + PostGIS + pgvector on the VM (pilot); create the app DB; run `alembic upgrade head`; create `app_rw`/`public_read` with real passwords; lock down `pg_hba` to localhost. **Acceptance:** `psql` on the box shows all 10 tables + roles. (RDS alternative: provision an RDS Postgres with the `postgis`+`vector` extensions enabled, point the app's DB URL at it — same migration, same acceptance.)
 
 ### Task H2: S3 bucket + app service
 
