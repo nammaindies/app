@@ -9,15 +9,17 @@ from starlette.responses import JSONResponse
 from app.auth.deps import require_observer
 from app.deps import get_conn, get_storage
 from app.ids import uuid7
-from app.photos import process_photo
+from app.photos import process_photo, ProcessedPhoto
 from app.storage.s3 import S3Storage
+from app.video import extract_diverse_frames
 
 router = APIRouter()
 
 
 @router.post("/sighting")
 async def create_sighting(
-    photos: list[UploadFile] = File(...),
+    photos: list[UploadFile] | None = File(None),
+    video: UploadFile | None = File(None),
     lat: float | None = Form(None),
     lng: float | None = Form(None),
     geo_accuracy_m: float | None = Form(None),
@@ -32,16 +34,34 @@ async def create_sighting(
     conn=Depends(get_conn),
     storage: S3Storage = Depends(get_storage),
 ):
-    if not photos:
-        raise HTTPException(status_code=422, detail="at least one photo is required")
+    if not photos and video is None:
+        raise HTTPException(
+            status_code=422, detail="at least one photo or a video is required"
+        )
+    if photos and video is not None:
+        raise HTTPException(
+            status_code=422, detail="provide either photos or a video, not both"
+        )
 
     sighting_id = uuid7()
+    from_video = video is not None
+
+    processed_frames: list[ProcessedPhoto]
+    if from_video:
+        raw_video = await video.read()
+        try:
+            processed_frames = extract_diverse_frames(raw_video)
+        except (ValueError, OSError, RuntimeError):
+            raise HTTPException(
+                status_code=422, detail="could not read video / no decodable frames"
+            )
+        # raw video bytes are never persisted -- discarded here.
+    else:
+        processed_frames = [process_photo(await f.read()) for f in photos]
 
     photo_rows = []
     first_phash: str | None = None
-    for f in photos:
-        raw = await f.read()
-        p = process_photo(raw)
+    for p in processed_frames:
         photo_id = uuid7()
         if first_phash is None:
             first_phash = p.phash
@@ -70,6 +90,8 @@ async def create_sighting(
         }.items()
         if v
     }
+    if from_video:
+        attrs["source"] = "video"
 
     async with conn.transaction():
         if geog_present:
