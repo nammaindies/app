@@ -8,6 +8,7 @@ import {
   type Sex,
 } from "../api";
 import { enqueue } from "../offline/queue";
+import DogSprite from "../components/DogSprite";
 
 const SEX_OPTIONS: { value: Sex; label: string }[] = [
   { value: "male", label: "♂ male" },
@@ -121,7 +122,7 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
 
     try {
       await postSighting(input);
-      showToast("Woof! Sighting saved 🐾");
+      showToast("Sighting logged 🐾");
       reset();
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -148,10 +149,22 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
           <img src={previewUrl} alt="captured dog" />
         ) : (
           <div className="placeholder">
-            <div style={{ fontSize: "2.4rem" }}>🐕</div>
-            <p>Spot a street dog? Snap a photo.</p>
+            <DogSprite coat="tan" scale={7} />
+            <p>Spot an indie? Snap a photo.</p>
           </div>
         )}
+        <div className="vf-chrome" aria-hidden="true">
+          <span className="vf-corner vf-c1" />
+          <span className="vf-corner vf-c2" />
+          <span className="vf-corner vf-c3" />
+          <span className="vf-corner vf-c4" />
+          <span className="vf-rec">
+            <i className="vf-dot" />
+            REC
+          </span>
+          <span className="vf-batt">▮▮▮▯</span>
+          <span className="vf-stamp">SP · {new Date().toLocaleString()} · GPS</span>
+        </div>
       </div>
 
       <input
@@ -165,7 +178,8 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
 
       {!photo ? (
         <div className="shutter-wrap">
-          <button className="shutter" onClick={() => fileRef.current?.click()} aria-label="Take photo">
+          <span className="spot-label">SPOT AN INDIE</span>
+          <button className="shutter" onClick={() => fileRef.current?.click()} aria-label="Spot a sighting">
             📷
           </button>
           <p className="hint">Tap to open camera</p>
@@ -208,10 +222,10 @@ export default function Capture({ onUnauthorized }: { onUnauthorized: () => void
 
           <div className="actions-row">
             <button className="btn btn-secondary" onClick={reset} disabled={submitting}>
-              Retake
+              RETAKE
             </button>
             <button className="btn btn-primary" onClick={submit} disabled={submitting}>
-              {submitting ? <span className="spinner" /> : "Log sighting"}
+              {submitting ? <span className="spinner" /> : "LOG IT"}
             </button>
           </div>
         </>

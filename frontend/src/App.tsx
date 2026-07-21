@@ -66,11 +66,11 @@ export default function App() {
       <div className="tabbar">
         <button className={tab === "capture" ? "active" : ""} onClick={() => setTab("capture")}>
           <span className="icon">📷</span>
-          Capture
+          SPOT
         </button>
         <button className={tab === "dex" ? "active" : ""} onClick={() => setTab("dex")}>
-          <span className="icon">🗺️</span>
-          IndieDex
+          <span className="icon">📖</span>
+          INDIEDEX
         </button>
       </div>
     </div>
